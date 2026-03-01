@@ -12,15 +12,24 @@ export async function POST(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { name, model, size, telegram_token, api_key, owner_id, soul, openclaw_config, custom_env, workspace_files } = await req.json();
+  const { name, mode, model, size, telegram_token, api_key, owner_id, soul, openclaw_config, custom_env, workspace_files } = await req.json();
+
+  const isAdvanced = mode === "advanced";
 
   // ── Validate ──
   if (!name || !/^[a-z0-9][a-z0-9-]{0,22}[a-z0-9]$/.test(name)) {
     return NextResponse.json({ error: "Bot name: 2-24 chars, lowercase alphanumeric + hyphens" }, { status: 400 });
   }
-  if (!telegram_token) return NextResponse.json({ error: "Telegram bot token is required" }, { status: 400 });
-  if (!api_key) return NextResponse.json({ error: "AI API key is required" }, { status: 400 });
-  if (!owner_id) return NextResponse.json({ error: "Telegram owner ID is required" }, { status: 400 });
+
+  if (isAdvanced) {
+    // Advanced mode: openclaw.json is required, individual fields are not
+    if (!openclaw_config) return NextResponse.json({ error: "openclaw.json config is required in advanced mode" }, { status: 400 });
+  } else {
+    // Easy mode: individual fields required
+    if (!telegram_token) return NextResponse.json({ error: "Telegram bot token is required" }, { status: 400 });
+    if (!api_key) return NextResponse.json({ error: "AI API key is required" }, { status: 400 });
+    if (!owner_id) return NextResponse.json({ error: "Telegram owner ID is required" }, { status: 400 });
+  }
 
   const existing = await dbGet(
     "SELECT id, status FROM bots WHERE user_id = ? AND name = ?",
@@ -38,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const botId = generateId();
   const instanceSize = ["small", "medium"].includes(size) ? size : "small";
-  const botModel = model || "anthropic/claude-sonnet-4-20250514";
+  const botModel = isAdvanced ? (model || "custom") : (model || "anthropic/claude-sonnet-4-20250514");
 
   // ── Save bot + secrets as pending ──
   // Validate custom config if provided
@@ -58,7 +67,7 @@ export async function POST(req: NextRequest) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     botId, user.id, name, botModel, instanceSize,
     BYPASS_BILLING ? "provisioning" : "pending_payment",
-    telegram_token, api_key, String(owner_id), soul || null,
+    telegram_token || null, api_key || null, owner_id ? String(owner_id) : null, soul || null,
     openclaw_config || null,
     custom_env ? JSON.stringify(custom_env) : null,
     workspace_files ? JSON.stringify(workspace_files) : null
