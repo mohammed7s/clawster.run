@@ -10,12 +10,13 @@ export async function deployBot(botId: string): Promise<{ error?: string; phala_
   if (!bot) return { error: "Bot not found" };
 
   const envVars: { key: string; value: string }[] = [
-    { key: "TELEGRAM_BOT_TOKEN", value: bot.pending_telegram_token as string },
-    { key: "ANTHROPIC_API_KEY", value: bot.pending_api_key as string },
-    { key: "TELEGRAM_OWNER_ID", value: bot.pending_owner_id as string },
     { key: "DEFAULT_MODEL", value: bot.model as string },
     { key: "NODE_OPTIONS", value: "--max-old-space-size=1536" },
   ];
+  // Only add individual fields if they exist (easy mode)
+  if (bot.pending_telegram_token) envVars.push({ key: "TELEGRAM_BOT_TOKEN", value: bot.pending_telegram_token as string });
+  if (bot.pending_api_key) envVars.push({ key: "ANTHROPIC_API_KEY", value: bot.pending_api_key as string });
+  if (bot.pending_owner_id) envVars.push({ key: "TELEGRAM_OWNER_ID", value: bot.pending_owner_id as string });
   if (bot.pending_soul) {
     envVars.push({ key: "SOUL_MD", value: bot.pending_soul as string });
   }
